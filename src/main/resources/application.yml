@@ -44,3 +44,11 @@ management:
 logging:
   level:
     io.pointscore: DEBUG
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+  api-docs:
+    path: /v3/api-docs
