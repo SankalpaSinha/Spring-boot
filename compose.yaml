@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pointscore-db
+    environment:
+      POSTGRES_DB: pointscore
+      POSTGRES_USER: pointscore
+      POSTGRES_PASSWORD: pointscore
+    ports:
+      - "5432:5432"
+    volumes:
+      - pointscore-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Without this, 'docker compose up -d' returns while Postgres is still
+      # starting, and the app races it and dies on first connect.
+      test: ["CMD-SHELL", "pg_isready -U pointscore -d pointscore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pointscore-pgdata:
