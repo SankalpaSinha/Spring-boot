@@ -49,47 +49,15 @@ import java.util.Optional;
  * millions of transactions the programme silently underpays.</li>
  * </ol>
  *
- * <h2>What you need to write</h2>
- * Search this file for {@code YOUR TASK}. The helpers below the stubs are
- * already done -- pulling values out of JSON is plumbing, not the interesting
- * part. Seven tests in {@code DefaultEarnRuleEngineTest} describe the expected
- * behaviour; remove the {@code @Disabled} annotations and make them pass.
+ * <p>Specified by the thirteen tests in {@code DefaultEarnRuleEngineTest},
+ * which run without Spring or a database because evaluation is a pure function
+ * of its inputs.
  */
 @Component
 public class DefaultEarnRuleEngine implements EarnRuleEngine {
 
     @Override
     public EarnResult evaluate(EarnContext context) {
-        // ------------------------------------------------------------------
-        // YOUR TASK (milestone 2, part 1)
-        //
-        // Implement the five steps in the class javadoc above.
-        //
-        // A sketch, if you want one:
-        //
-        // 1. Filter context.rules() down to rules that are live at
-        // context.occurredAt() -> EarnRule.isLiveAt(Instant) exists.
-        //
-        // 2. Find the rule whose ruleType is BASE. If there is none,
-        // return EarnResult.none().
-        // Compute basePoints with basePointsFor(...) below.
-        //
-        // 3. Walk the remaining live rules, keeping the ones for which
-        // matches(rule, context) is true. Keep them in priority order --
-        // the list arrives sorted, so preserve it.
-        //
-        // 4. effectiveMultiplier = ONE plus the sum of (multiplier - ONE)
-        // over the matching promotions.
-        //
-        // 5. Multiply basePoints by effectiveMultiplier and by
-        // context.tierMultiplier(), then floor the result to an int.
-        // Build the applied-rules list: the BASE rule first, then the
-        // promotions that fired, and return an EarnResult.
-        //
-        // Things the tests will check that are easy to miss:
-        // - a purchase too small to earn anything yields 0 points, but the
-        // BASE rule still counts as applied;
-        // - day-of-week uses context.dayOfWeek(), never occurredAt directly;
         List<EarnRule> live = context.rules().stream()
                 .filter(rule -> rule.isLiveAt(context.occurredAt()))
                 .toList();
@@ -104,11 +72,25 @@ public class DefaultEarnRuleEngine implements EarnRuleEngine {
 
         int basePoints = basePointsFor(base.get(), context.amount());
 
-        int points = floorToPoints(
-                BigDecimal.valueOf(basePoints).multiply(context.tierMultiplier()));
+        List<EarnRule> promotions = live.stream()
+                .filter(rule -> matches(rule, context))
+                .toList();
 
-        return new EarnResult(points, basePoints, BigDecimal.ONE,
-                List.of(AppliedRule.from(base.get())));
+        BigDecimal effectiveMultiplier = BigDecimal.ONE;
+        for (EarnRule promotion : promotions) {
+            effectiveMultiplier = effectiveMultiplier
+                    .add(promotion.getMultiplier().subtract(BigDecimal.ONE));
+        }
+
+        int points = floorToPoints(BigDecimal.valueOf(basePoints)
+                .multiply(effectiveMultiplier)
+                .multiply(context.tierMultiplier()));
+
+        List<AppliedRule> applied = new ArrayList<>();
+        applied.add(AppliedRule.from(base.get()));
+        promotions.forEach(promotion -> applied.add(AppliedRule.from(promotion)));
+
+        return new EarnResult(points, basePoints, effectiveMultiplier, applied);
     }
 
     /**
@@ -119,34 +101,21 @@ public class DefaultEarnRuleEngine implements EarnRuleEngine {
      * promotion and must return {@code false} here.
      */
     boolean matches(EarnRule rule, EarnContext context) {
-        // ------------------------------------------------------------------
-        // YOUR TASK (milestone 2, part 2)
-        //
-        // Switch on rule.getRuleType() and decide whether it fires:
-        //
-        // BASE -> false (not a promotion)
-        //
-        // CATEGORY -> conditions {"categories": ["COFFEE", "PASTRY"]}
-        // fires when context.category() is in that list.
-        // Compare case-insensitively: a till sending
-        // "coffee" must match a rule written "COFFEE".
-        // Use stringList(rule, "categories").
-        //
-        // DAY_OF_WEEK -> conditions {"days": ["SATURDAY", "SUNDAY"]}
-        // fires when context.dayOfWeek() is named in the
-        // list. DayOfWeek.valueOf(..) parses the names, but
-        // mind the case. Use stringList(rule, "days").
-        //
-        // MIN_AMOUNT -> conditions {"minAmount": 2000}
-        // fires when the basket is at or above the
-        // threshold -- inclusive, so a basket of exactly
-        // 2000 qualifies. Use decimal(rule, "minAmount").
-        // Remember BigDecimal comparison is compareTo, not
-        // equals: new BigDecimal("2000.00").equals(
-        // new BigDecimal("2000")) is false.
-        // ------------------------------------------------------------------
-        throw new UnsupportedOperationException(
-                "milestone 2: implement DefaultEarnRuleEngine.matches");
+        return switch (rule.getRuleType()) {
+
+            case BASE -> false;
+
+            case CATEGORY -> stringList(rule, "categories")
+                    .contains(context.category().toUpperCase(Locale.ROOT));
+
+            case DAY_OF_WEEK -> stringList(rule, "days")
+                    .contains(context.dayOfWeek().name());
+
+            case MIN_AMOUNT -> context.amount()
+                    .compareTo(decimal(rule, "minAmount")) >= 0;
+
+        };
+
     }
 
     // ---------------------------------------------------------------------
