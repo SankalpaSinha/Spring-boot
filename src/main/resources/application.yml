@@ -52,3 +52,10 @@ springdoc:
     tagsSorter: alpha
   api-docs:
     path: /v3/api-docs
+
+# Programme policy -- the brand's rules, not the code's.
+pointscore:
+  # Decides what counts as a weekend and when expiry dates land.
+  zone: Asia/Kolkata
+  # Points survive twelve calendar months from the day they were earned.
+  point-expiry-months: 12

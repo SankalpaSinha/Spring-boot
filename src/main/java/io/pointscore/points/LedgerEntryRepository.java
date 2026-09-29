@@ -19,4 +19,11 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             where e.member.id = :memberId
             """)
     int balanceOf(Long memberId);
+
+    /** Every point ever earned, ignoring what has since been spent or expired. */
+    @Query("""
+            select coalesce(sum(e.points), 0) from LedgerEntry e
+            where e.member.id = :memberId and e.entryType = io.pointscore.points.LedgerEntryType.EARN
+            """)
+    int lifetimeEarnedBy(Long memberId);
 }
