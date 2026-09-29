@@ -1,6 +1,5 @@
 package io.pointscore.earning;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * tests are plain objects and arithmetic. If you find yourself wanting a
  * repository here, the design has gone wrong.
  */
-@Disabled("milestone 2: delete this line to start")
 class DefaultEarnRuleEngineTest {
 
     private final DefaultEarnRuleEngine engine = new DefaultEarnRuleEngine();
