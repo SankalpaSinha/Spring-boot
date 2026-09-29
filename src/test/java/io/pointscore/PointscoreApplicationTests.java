@@ -38,7 +38,13 @@ class PointscoreApplicationTests {
     void referenceDataIsSeeded() {
         assertThat(jdbc.queryForObject("select count(*) from tiers", Integer.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from earn_rules where active", Integer.class)).isEqualTo(4);
-        assertThat(jdbc.queryForObject("select count(*) from rewards", Integer.class)).isEqualTo(3);
+        // Asserts the seeded rows exist, not a total count. Other tests create
+        // rewards of their own, and the container is reused between runs, so a
+        // total would be counting something this test does not own.
+        assertThat(jdbc.queryForObject("""
+                select count(*) from rewards
+                where code in ('FREE_LATTE', 'COFFEE_BEANS', 'BRANDED_MUG')
+                """, Integer.class)).isEqualTo(3);
     }
 
     @Test

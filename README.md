@@ -39,7 +39,7 @@ docker compose up -d      # Postgres 17 on :5432
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 16 tests, against a real Postgres
+./mvnw test               # 23 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
@@ -125,11 +125,39 @@ that was running when they paid. Day-of-week is resolved in the programme's
 timezone (`pointscore.zone`), because an Instant has no day-of-week until you
 pick one -- 04:00 Saturday in Hyderabad is still Friday in UTC.
 
+## Redemption and concurrency
+
+Redemption is the one place where two requests can destroy each other. Two taps
+on the same button, arriving milliseconds apart, both read a balance of 300,
+both decide a 200-point reward is affordable, and the member finishes at −100
+holding two rewards. Neither request did anything wrong; they interleaved.
+
+`PointLotRepository.lockLiveLotsForMember` is annotated
+`@Lock(PESSIMISTIC_WRITE)`, so Hibernate emits `SELECT ... FOR UPDATE` and
+Postgres holds those rows until the transaction commits. The second request
+blocks rather than reading a stale balance, then re-reads the truth and is
+correctly refused.
+
+A Java `synchronized` block would not do: it guards one JVM, while the
+contention is over database rows that a second instance, a script or a psql
+session can all reach.
+
+`RedemptionServiceTest.concurrentRedemptionsNeverOverdraw` fires twenty
+simultaneous redemptions at a 300-point balance and asserts exactly three
+succeed, the balance lands on zero, and reward stock falls by exactly three.
+Swapping the locked query for the identical unlocked one makes that test fail
+with a balance of −1500.
+
+Retries are a separate problem with a separate fix: the caller sends an
+`Idempotency-Key`, and a UNIQUE constraint on that column is what actually
+prevents a double spend. The pre-flight lookup is only a fast path, since two
+concurrent retries can both read "not seen".
+
 ## Status
 
 - [x] Schema, migrations, member enrolment
 - [x] Earn rule engine
 - [x] Purchase ingestion, balance, ledger, reward catalogue
-- [ ] Redemption with row locking and idempotency keys
+- [x] Redemption with row locking and idempotency keys
 - [ ] Points expiry job and tier recalculation
 - [ ] JWT authentication and the admin/member split
