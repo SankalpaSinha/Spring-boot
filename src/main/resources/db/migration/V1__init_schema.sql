@@ -134,7 +134,7 @@ CREATE TABLE transactions (
     external_ref   TEXT          NOT NULL,
 
     amount         NUMERIC(12,2) NOT NULL,
-    currency       CHAR(3)       NOT NULL DEFAULT 'INR',
+    currency       VARCHAR(3)    NOT NULL DEFAULT 'INR',
     category       TEXT          NOT NULL,
     occurred_at    TIMESTAMPTZ   NOT NULL,
 

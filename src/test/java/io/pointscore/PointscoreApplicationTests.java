@@ -7,6 +7,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -42,13 +44,18 @@ class PointscoreApplicationTests {
     @Test
     @DisplayName("the ledger really is append-only, enforced by the database")
     void ledgerRejectsMutation() {
+        // A unique email per run. The Postgres container is reused between
+        // runs, so the database is NOT empty when this starts -- a hardcoded
+        // address passes once and then fails for ever on the unique index.
+        String email = "immutable-" + UUID.randomUUID() + "@example.com";
+
         jdbc.update("""
                 insert into members (name, email, tier_id)
-                values ('Immutability Test', 'immutable@example.com',
+                values ('Immutability Test', ?,
                         (select id from tiers where code = 'SILVER'))
-                """);
+                """, email);
         Long memberId = jdbc.queryForObject(
-                "select id from members where email = 'immutable@example.com'", Long.class);
+                "select id from members where email = ?", Long.class, email);
 
         jdbc.update("""
                 insert into ledger_entries (member_id, entry_type, points, description)
