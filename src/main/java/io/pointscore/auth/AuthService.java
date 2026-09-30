@@ -2,6 +2,7 @@ package io.pointscore.auth;
 
 import io.pointscore.auth.AuthDtos.TokenResponse;
 import io.pointscore.auth.JwtService.IssuedToken;
+import io.pointscore.common.BadRequestException;
 import io.pointscore.common.ConflictException;
 import io.pointscore.member.Member;
 import io.pointscore.member.MemberService;
@@ -12,10 +13,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
+    /**
+     * bcrypt hashes at most 72 BYTES, and Spring Security 7 rejects longer
+     * input outright. The DTO's @Size counts characters, so a 40-character
+     * passphrase of non-Latin script can still be over the limit.
+     */
+    static final int BCRYPT_MAX_BYTES = 72;
 
     /**
      * A real bcrypt hash of nothing in particular. Compared against when the
@@ -49,31 +59,58 @@ public class AuthService {
      */
     @Transactional
     public Member signUp(String name, String email, String password) {
+        requireHashable(password);
         Member member = memberService.enrol(name, email);
         try {
             userAccountRepository.saveAndFlush(
                     UserAccount.memberAccount(member, email, passwordEncoder.encode(password)));
         } catch (DataIntegrityViolationException ex) {
-            // Reachable when a staff account already uses this address; the
-            // member-email collision is caught earlier by MemberService.
-            throw new ConflictException("EMAIL_ALREADY_REGISTERED",
-                    "an account with email " + email + " already exists");
+            // Reachable when a staff account already uses this address. Same
+            // code and wording as the member collision in MemberService, so
+            // the response does not reveal which kind of account it hit.
+            throw new ConflictException("EMAIL_ALREADY_ENROLLED",
+                    "a member with email " + email + " is already enrolled");
         }
         return member;
     }
 
-    /** Idempotent: an admin that already exists is returned, not recreated. */
+    /**
+     * Idempotent: an admin that already exists is returned, not recreated. An
+     * existing account under that address with any other role is a
+     * misconfiguration and fails the boot, rather than quietly running with
+     * no admin at all.
+     */
     @Transactional
     public UserAccount ensureAdmin(String email, String password) {
-        return userAccountRepository.findByEmailIgnoreCase(email)
+        String address = email.trim();
+        return userAccountRepository.findByEmailIgnoreCase(address)
+                .map(existing -> {
+                    if (existing.getRole() != UserRole.ADMIN) {
+                        throw new IllegalStateException("bootstrap admin email " + address
+                                + " belongs to a " + existing.getRole() + " account");
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> {
-                    log.info("Creating admin account {}", email);
+                    requireHashable(password);
+                    log.info("Creating admin account {}", address);
                     return userAccountRepository.save(
-                            UserAccount.adminAccount(email, passwordEncoder.encode(password)));
+                            UserAccount.adminAccount(address, passwordEncoder.encode(password)));
                 });
     }
 
-    @Transactional(readOnly = true)
+    private static void requireHashable(String password) {
+        if (password.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
+            throw new BadRequestException("PASSWORD_TOO_LONG",
+                    "password must be at most " + BCRYPT_MAX_BYTES + " bytes when UTF-8 encoded");
+        }
+    }
+
+    /**
+     * Not transactional on purpose: bcrypt is slow by design, and holding a
+     * pooled connection open for the whole comparison would let a burst of
+     * logins starve everything else of the pool.
+     */
     public TokenResponse login(String email, String password) {
         UserAccount account = userAccountRepository.findByEmailIgnoreCase(email.trim()).orElse(null);
 

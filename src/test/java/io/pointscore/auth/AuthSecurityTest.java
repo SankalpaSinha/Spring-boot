@@ -6,13 +6,21 @@ import io.pointscore.member.Member;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +33,7 @@ class AuthSecurityTest extends AbstractIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AuthService authService;
+    @Autowired private JwtEncoder jwtEncoder;
     @Autowired private TransactionTemplate tx;
 
     @Test
@@ -80,21 +89,43 @@ class AuthSecurityTest extends AbstractIntegrationTest {
         String email = uniqueEmail("wrongpw");
         signUp(email);
 
-        mockMvc.perform(post("/api/auth/login")
+        String wrongPassword = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "%s", "password": "not-it"}
                                 """.formatted(email)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+                .andReturn().getResponse().getContentAsString();
 
-        mockMvc.perform(post("/api/auth/login")
+        String unknownEmail = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "%s", "password": "%s"}
                                 """.formatted(uniqueEmail("nobody"), PASSWORD)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+                .andReturn().getResponse().getContentAsString();
+
+        // Byte-for-byte the same apart from the timestamp, so nothing in the
+        // body says which of the two happened.
+        assertThat(withoutTimestamp(wrongPassword)).isEqualTo(withoutTimestamp(unknownEmail));
+    }
+
+    @Test
+    @DisplayName("a password over bcrypt's 72-byte limit is a 400, not a 500")
+    void overlongPasswordIsRejectedCleanly() throws Exception {
+        // 40 characters of Devanagari: within @Size(max = 72) characters, but
+        // 120 bytes in UTF-8, which bcrypt will not hash.
+        String password = "\u0928\u092e\u0938\u094d\u0924\u0947".repeat(7);
+
+        mockMvc.perform(post("/api/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Asha", "email": "%s", "password": "%s"}
+                                """.formatted(uniqueEmail("longpw"), password)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PASSWORD_TOO_LONG"));
     }
 
     @Test
@@ -154,6 +185,15 @@ class AuthSecurityTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
+        // Mutation too, not only reads: the rule is on the path, not the verb.
+        mockMvc.perform(post("/api/admin/rewards")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"code": "HACK", "name": "Free everything", "costPoints": 1, "stock": 1}
+                                """))
+                .andExpect(status().isForbidden());
+
         mockMvc.perform(get("/api/admin/rewards").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());
 
@@ -168,11 +208,38 @@ class AuthSecurityTest extends AbstractIntegrationTest {
         signUp(email);
         String token = login(email, PASSWORD);
 
-        // Flip the last character of the signature.
-        char last = token.charAt(token.length() - 1);
-        String tampered = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
+        // Flip the FIRST character of the signature. The last one only carries
+        // two or four significant bits, so flipping it can decode to the very
+        // same bytes and leave the token valid.
+        int sigStart = token.lastIndexOf('.') + 1;
+        char first = token.charAt(sigStart);
+        String tampered = token.substring(0, sigStart) + (first == 'A' ? 'B' : 'A') + token.substring(sigStart + 1);
 
         mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tampered))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    @DisplayName("an expired token is refused even though its signature is good")
+    void expiredTokenIsRefused() throws Exception {
+        String email = uniqueEmail("expired");
+        Member member = signUp(email);
+
+        // Signed with the real key, expired well past the decoder's clock skew.
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .subject("1")
+                .issuedAt(Instant.now().minus(3, ChronoUnit.HOURS))
+                .expiresAt(Instant.now().minus(2, ChronoUnit.HOURS))
+                .claim("email", email)
+                .claim("role", "MEMBER")
+                .claim("memberId", member.getId())
+                .build();
+        String expired = jwtEncoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+
+        mockMvc.perform(get("/api/members/{id}/balance", member.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + expired))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -186,6 +253,10 @@ class AuthSecurityTest extends AbstractIntegrationTest {
     }
 
     // ----------------------------------------------------------------- helpers
+
+    private static String withoutTimestamp(String problemJson) {
+        return problemJson.replaceAll("\"timestamp\":\"[^\"]*\"", "");
+    }
 
     private static String uniqueEmail(String prefix) {
         return prefix + "-" + UUID.randomUUID() + "@example.com";
