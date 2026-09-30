@@ -1,6 +1,7 @@
 package io.pointscore;
 
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 
 /**
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Import;
  * against the code under test.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 public abstract class AbstractIntegrationTest {
 }

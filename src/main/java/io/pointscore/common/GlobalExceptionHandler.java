@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -40,6 +41,24 @@ public class GlobalExceptionHandler {
             problem.setProperty("required", insufficient.getRequired());
             problem.setProperty("available", insufficient.getAvailable());
         }
+        return problem;
+    }
+
+    /**
+     * Reached both from the security filter (via SecurityErrorHandlers) and
+     * from any future method-level rule. Without this the generic handler
+     * below would report a caller's 403 as our 500.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        log.debug("FORBIDDEN on {}", request.getRequestURI());
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, "You do not have access to this resource.");
+        problem.setTitle("FORBIDDEN");
+        problem.setType(URI.create("https://pointscore.io/errors/forbidden"));
+        problem.setProperty("code", "FORBIDDEN");
+        problem.setProperty("timestamp", Instant.now());
         return problem;
     }
 

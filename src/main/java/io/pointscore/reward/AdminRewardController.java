@@ -15,8 +15,8 @@ import java.util.List;
  * Administrative reward management.
  *
  * <p>Separated from {@link RewardController} by URL rather than by method, so
- * that milestone 4 can lock the whole {@code /api/admin/**} tree down to
- * ROLE_ADMIN in one rule instead of annotating endpoints individually and
+ * that {@code SecurityConfig} locks the whole {@code /api/admin/**} tree down
+ * to ROLE_ADMIN in one rule instead of annotating endpoints individually and
  * hoping none were missed.
  */
 @RestController

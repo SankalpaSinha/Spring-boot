@@ -1,5 +1,6 @@
 package io.pointscore.member;
 
+import io.pointscore.auth.AuthService;
 import io.pointscore.member.MemberDtos.CreateMemberRequest;
 import io.pointscore.member.MemberDtos.MemberResponse;
 import jakarta.validation.Valid;
@@ -15,15 +16,18 @@ import java.net.URI;
 public class MemberController {
 
     private final MemberService memberService;
+    private final AuthService authService;
 
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, AuthService authService) {
         this.memberService = memberService;
+        this.authService = authService;
     }
 
+    /** Sign-up: enrols the member and creates their login together. Public. */
     @PostMapping
     public ResponseEntity<MemberResponse> enrol(@Valid @RequestBody CreateMemberRequest request,
                                                 UriComponentsBuilder uriBuilder) {
-        Member member = memberService.enrol(request.name(), request.email());
+        Member member = authService.signUp(request.name(), request.email(), request.password());
 
         URI location = uriBuilder.path("/api/members/{id}").buildAndExpand(member.getId()).toUri();
         return ResponseEntity.created(location).body(MemberResponse.from(member));

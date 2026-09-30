@@ -26,7 +26,12 @@ public final class MemberDtos {
             @NotBlank(message = "email is required")
             @Email(message = "email must be a valid address")
             @Size(max = 255, message = "email must be at most 255 characters")
-            String email
+            String email,
+
+            // 72 is bcrypt's input limit; anything longer is silently truncated.
+            @NotBlank(message = "password is required")
+            @Size(min = 8, max = 72, message = "password must be between 8 and 72 characters")
+            String password
     ) {
     }
 

@@ -33,13 +33,17 @@ Requires JDK 21 and a Docker daemon.
 
 ```bash
 docker compose up -d      # Postgres 17 on :5432
-./mvnw spring-boot:run
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=change-me-please ./mvnw spring-boot:run
 ```
+
+`ADMIN_EMAIL` and `ADMIN_PASSWORD` create the first admin at startup; admins
+are not enrolled through the public API. Set `JWT_SECRET` (32+ bytes) too for
+anything beyond a laptop, or tokens stop working on every restart.
 
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 36 tests, against a real Postgres
+./mvnw test               # 45 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
@@ -69,37 +73,51 @@ assume an empty database.
 ## Trying it out
 
 ```bash
-# enrol
+# sign up -- enrols the member and creates their login
 curl -X POST localhost:8080/api/members \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Asha Rao","email":"asha@example.com"}'
+  -d '{"name":"Asha Rao","email":"asha@example.com","password":"a-long-passphrase"}'
+
+# purchases come from the till, so they need an admin token
+ADMIN=$(curl -s -X POST localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"change-me-please"}' | jq -r .token)
 
 # a weekend coffee purchase: 10 base points x (2x weekend + 3x coffee) = 40
 curl -X POST localhost:8080/api/members/1/transactions \
-  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
   -d '{"externalRef":"RCPT-001","amount":1000.00,"category":"COFFEE","occurredAt":"2026-01-03T06:30:00Z"}'
 
 # send the same receipt again -- returns 200 and the original, not a second award
 curl -X POST localhost:8080/api/members/1/transactions \
-  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
   -d '{"externalRef":"RCPT-001","amount":1000.00,"category":"COFFEE","occurredAt":"2026-01-03T06:30:00Z"}'
 
-curl localhost:8080/api/members/1/balance
-curl localhost:8080/api/members/1/ledger
+# the member reads their own balance with their own token
+ASHA=$(curl -s -X POST localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"asha@example.com","password":"a-long-passphrase"}' | jq -r .token)
+
+curl -H "Authorization: Bearer $ASHA" localhost:8080/api/members/1/balance
+curl -H "Authorization: Bearer $ASHA" localhost:8080/api/members/1/ledger
 ```
 
 ## API
 
-| Method | Path | |
-|---|---|---|
-| POST | `/api/members` | enrol a member |
-| GET | `/api/members/{id}` | fetch a member |
-| POST | `/api/members/{id}/transactions` | ingest a purchase and award points |
-| GET | `/api/members/{id}/transactions` | purchase history |
-| GET | `/api/members/{id}/balance` | balance, expiring-soon, next expiry |
-| GET | `/api/members/{id}/ledger` | paginated points history |
-| GET | `/api/rewards` | reward catalogue |
-| GET/POST/PATCH | `/api/admin/rewards` | manage rewards |
+| Method | Path | | Who |
+|---|---|---|---|
+| POST | `/api/members` | sign up: enrol a member and create their login | anyone |
+| POST | `/api/auth/login` | exchange email and password for a token | anyone |
+| GET | `/api/auth/me` | what the token says about you | any token |
+| GET | `/api/members/{id}` | fetch a member | self, admin |
+| POST | `/api/members/{id}/transactions` | ingest a purchase and award points | admin |
+| GET | `/api/members/{id}/transactions` | purchase history | self, admin |
+| GET | `/api/members/{id}/balance` | balance, expiring-soon, next expiry | self, admin |
+| GET | `/api/members/{id}/ledger` | paginated points history | self, admin |
+| POST | `/api/members/{id}/redemptions` | redeem a reward | self, admin |
+| GET | `/api/members/{id}/redemptions` | redemption history | self, admin |
+| GET | `/api/rewards` | reward catalogue | anyone |
+| GET/POST/PATCH | `/api/admin/rewards` | manage rewards | admin |
 
 Errors are RFC 9457 problem responses carrying a stable `code` field.
 
@@ -153,6 +171,32 @@ Retries are a separate problem with a separate fix: the caller sends an
 prevents a double spend. The pre-flight lookup is only a fast path, since two
 concurrent retries can both read "not seen".
 
+## Authentication
+
+Stateless bearer tokens: `POST /api/auth/login` returns an HS256-signed JWT
+carrying the account's role and, for members, their `memberId`. Every other
+request sends it as `Authorization: Bearer <token>`.
+
+Logins live in `user_accounts`, apart from `members`, because a member is a
+loyalty customer and an account is a way in: staff need the second without the
+first. A CHECK constraint ties the two together -- a `MEMBER` account must
+point at a member and an `ADMIN` must not -- so the authorisation code can
+assume it.
+
+The rules sit in one place, `SecurityConfig`, in order. Members may only touch
+URLs under their own `/api/members/{memberId}`; the whole `/api/admin/**` tree
+is admin-only; and ingesting a purchase is admin-only even on your own account,
+since a member who can post their own receipts can award themselves points.
+Grouping member-scoped URLs under one prefix is what lets a single rule cover
+them, rather than an annotation per endpoint where a missed one is a hole
+nobody sees.
+
+Failed logins take the same time whether the address exists or not, and say
+the same thing, so the login endpoint cannot be used to enumerate members.
+Security failures render as the same RFC 9457 problem responses as everything
+else, with codes `UNAUTHENTICATED` (401), `INVALID_CREDENTIALS` (401) and
+`FORBIDDEN` (403).
+
 ## Status
 
 - [x] Schema, migrations, member enrolment
@@ -160,4 +204,4 @@ concurrent retries can both read "not seen".
 - [x] Purchase ingestion, balance, ledger, reward catalogue
 - [x] Redemption with row locking and idempotency keys
 - [x] Points expiry job and tier recalculation
-- [ ] JWT authentication and the admin/member split
+- [x] JWT authentication and the admin/member split

@@ -63,3 +63,14 @@ pointscore:
   qualification-window-months: 12
   expiry-job:
     enabled: true
+  security:
+    # HS256 signing key, at least 32 bytes. Left blank, a random key is
+    # generated at boot: fine for development and tests, wrong for anything
+    # that restarts or runs two instances -- every token dies with the process.
+    jwt-secret: ${JWT_SECRET:}
+    token-ttl: 12h
+    # The first admin. Admins are not enrolled through the public API, so the
+    # only way in is to configure one; created at startup if it does not exist.
+    bootstrap-admin:
+      email: ${ADMIN_EMAIL:}
+      password: ${ADMIN_PASSWORD:}
