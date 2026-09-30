@@ -39,7 +39,10 @@ management:
         include: health,info
   endpoint:
     health:
+      # Component details (database vendor, disk paths) are for operators. Without
+      # roles, "when-authorized" would show them to any self-registered member.
       show-details: when-authorized
+      roles: ADMIN
 
 logging:
   level:

@@ -1,6 +1,7 @@
 package io.pointscore.config;
 
 import io.pointscore.auth.AuthPrincipal;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -48,6 +49,11 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // The container forwards rejected requests (a 400 from the
+                        // firewall, say) to /error as an ERROR dispatch. Without
+                        // this, anyRequest() would demand a token for that forward
+                        // and an anonymous caller's 400 would come back as a 401.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/members").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/rewards/**").permitAll()

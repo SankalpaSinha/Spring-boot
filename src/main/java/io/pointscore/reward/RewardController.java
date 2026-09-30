@@ -1,6 +1,7 @@
 package io.pointscore.reward;
 
 import io.pointscore.reward.RewardDtos.RewardResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,11 +21,15 @@ public class RewardController {
     }
 
     @GetMapping
+
+    @SecurityRequirements // the catalogue is public
     public List<RewardResponse> catalogue() {
         return rewardService.catalogue().stream().map(RewardResponse::from).toList();
     }
 
     @GetMapping("/{id}")
+
+    @SecurityRequirements // the catalogue is public
     public RewardResponse get(@PathVariable Long id) {
         return RewardResponse.from(rewardService.require(id));
     }

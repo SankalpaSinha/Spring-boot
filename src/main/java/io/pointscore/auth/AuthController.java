@@ -3,6 +3,7 @@ package io.pointscore.auth;
 import io.pointscore.auth.AuthDtos.LoginRequest;
 import io.pointscore.auth.AuthDtos.MeResponse;
 import io.pointscore.auth.AuthDtos.TokenResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @SecurityRequirements // public: no bearer token, whatever the global default says
     public TokenResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request.email(), request.password());
     }

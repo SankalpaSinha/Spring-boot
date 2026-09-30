@@ -3,6 +3,7 @@ package io.pointscore.member;
 import io.pointscore.auth.AuthService;
 import io.pointscore.member.MemberDtos.CreateMemberRequest;
 import io.pointscore.member.MemberDtos.MemberResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class MemberController {
 
     /** Sign-up: enrols the member and creates their login together. Public. */
     @PostMapping
+    @SecurityRequirements // public sign-up
     public ResponseEntity<MemberResponse> enrol(@Valid @RequestBody CreateMemberRequest request,
                                                 UriComponentsBuilder uriBuilder) {
         Member member = authService.signUp(request.name(), request.email(), request.password());
