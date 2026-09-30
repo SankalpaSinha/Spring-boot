@@ -67,7 +67,14 @@ public class PointExpiryService {
         return new ExpiryOutcome(expired.size(), pointsExpired);
     }
 
-    /** Convenience for the scheduled job. */
+    /**
+     * Convenience for the scheduled job. Transactional in its own right: a
+     * call from here to {@link #expireLotsAsOf} is a self-invocation that
+     * never passes through the Spring proxy, so without this annotation the
+     * production sweep would run with no transaction at all -- each lot
+     * update and its ledger row committing separately.
+     */
+    @Transactional
     public ExpiryOutcome expireNow() {
         return expireLotsAsOf(Instant.now());
     }

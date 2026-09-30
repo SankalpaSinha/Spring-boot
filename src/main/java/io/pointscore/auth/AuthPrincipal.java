@@ -24,11 +24,18 @@ public record AuthPrincipal(Long accountId, String email, UserRole role, Long me
         }
         Jwt jwt = token.getToken();
         Object memberId = jwt.getClaim(CLAIM_MEMBER_ID);
-        return Optional.of(new AuthPrincipal(
-                Long.parseLong(jwt.getSubject()),
-                jwt.getClaimAsString(CLAIM_EMAIL),
-                UserRole.valueOf(jwt.getClaimAsString(CLAIM_ROLE)),
-                memberId instanceof Number number ? number.longValue() : null));
+        try {
+            return Optional.of(new AuthPrincipal(
+                    Long.parseLong(jwt.getSubject()),
+                    jwt.getClaimAsString(CLAIM_EMAIL),
+                    UserRole.valueOf(jwt.getClaimAsString(CLAIM_ROLE)),
+                    memberId instanceof Number number ? number.longValue() : null));
+        } catch (RuntimeException malformed) {
+            // Only reachable with a token we signed ourselves and then changed
+            // the shape of. Treated as "nobody" so the caller gets a 401/403,
+            // not a stack trace.
+            return Optional.empty();
+        }
     }
 
     public boolean isAdmin() {

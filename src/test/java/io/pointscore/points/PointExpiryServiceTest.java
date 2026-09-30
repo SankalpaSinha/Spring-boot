@@ -60,6 +60,20 @@ class PointExpiryServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("the job's entry point expires through the proxy, atomically")
+    void expireNowIsTransactional() {
+        Member member = givenMember();
+        givenLot(member, 120, daysAgo(400), daysAgo(3));
+
+        ExpiryOutcome outcome = pointExpiryService.expireNow();
+
+        assertThat(outcome.pointsExpired()).isEqualTo(120);
+        assertThat(balanceOf(member)).isZero();
+        assertThat(livePointsOf(member)).isZero();
+        assertThat(balanceOf(member)).isEqualTo(livePointsOf(member));
+    }
+
+    @Test
     @DisplayName("leaves lots that have not yet expired completely alone")
     void leavesLiveLotsAlone() {
         Member member = givenMember();

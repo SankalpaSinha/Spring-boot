@@ -89,6 +89,8 @@ public class TierService {
         return new TierAssessment(currentTier, earnedTier, qualifyingPoints, true);
     }
 
+    /** Same self-invocation caveat as {@code PointExpiryService.expireNow}. */
+    @Transactional
     public TierAssessment recalculateNow(Long memberId) {
         return recalculate(memberId, Instant.now());
     }

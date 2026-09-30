@@ -39,7 +39,18 @@ public interface PointLotRepository extends JpaRepository<PointLot, Long> {
             """)
     List<PointLot> findLiveLotsForMember(Long memberId);
 
-    /** Lots that have points left but whose expiry has passed. Input to the nightly job. */
+    /**
+     * Lots that have points left but whose expiry has passed. Input to the
+     * nightly job.
+     *
+     * <p>Locked, for the same reason redemption locks: the sweep reads
+     * points_remaining, drains it in memory and writes the row back, and a
+     * redemption committing in between would have its draw overwritten while
+     * its ledger row stayed -- the invariant broken by exactly that amount.
+     * The ordering matches {@link #lockLiveLotsForMember}, so the two can
+     * never deadlock.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select l from PointLot l
             where l.pointsRemaining > 0 and l.expiresAt <= :asOf

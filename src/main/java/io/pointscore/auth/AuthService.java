@@ -94,8 +94,14 @@ public class AuthService {
                 .orElseGet(() -> {
                     requireHashable(password);
                     log.info("Creating admin account {}", address);
-                    return userAccountRepository.save(
-                            UserAccount.adminAccount(address, passwordEncoder.encode(password)));
+                    try {
+                        return userAccountRepository.saveAndFlush(
+                                UserAccount.adminAccount(address, passwordEncoder.encode(password)));
+                    } catch (DataIntegrityViolationException raced) {
+                        // Another instance booting at the same moment won the
+                        // insert. Its row is the admin; use it.
+                        return userAccountRepository.findByEmailIgnoreCase(address).orElseThrow(() -> raced);
+                    }
                 });
     }
 
