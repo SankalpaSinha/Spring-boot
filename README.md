@@ -45,7 +45,7 @@ anything beyond a laptop, or tokens stop working on every restart.
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 49 tests, against a real Postgres
+./mvnw test               # 52 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
@@ -215,9 +215,25 @@ nobody sees.
 
 Failed logins take the same time whether the address exists or not, and say
 the same thing, so the login endpoint cannot be used to enumerate members.
-Security failures render as the same RFC 9457 problem responses as everything
-else, with codes `UNAUTHENTICATED` (401), `INVALID_CREDENTIALS` (401) and
-`FORBIDDEN` (403).
+Sign-up still answers 201 or 409, which is an oracle by nature; that is the
+accepted trade-off of a public sign-up. Security failures render as the same
+RFC 9457 problem responses as everything else, with codes `UNAUTHENTICATED`
+(401), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403) and `PASSWORD_TOO_LONG`
+(400, bcrypt's 72-byte limit measured in bytes, not characters).
+
+## Known limitations
+
+- Tokens live twelve hours and there is no refresh or revocation. Logging out
+  is forgetting the token.
+- A member created before the accounts table existed, or enrolled through
+  `MemberService` directly, has no login and no way to claim one. A greenfield
+  deployment never hits this; a migration of an existing programme would need
+  an admin "create login for member" step.
+- The nightly jobs assume one running instance. A second copy does redundant
+  work but nothing incorrect; a real deployment would add a locking scheduler.
+- The bootstrap admin's address is not validated at startup beyond being
+  non-blank, so a value the login endpoint's `@Email` check rejects would be
+  created and then unable to log in.
 
 ## Status
 
