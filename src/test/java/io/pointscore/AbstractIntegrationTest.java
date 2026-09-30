@@ -3,6 +3,7 @@ package io.pointscore;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Base for tests that need the full application and a real Postgres.
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
 public abstract class AbstractIntegrationTest {
 }

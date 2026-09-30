@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 /**
  * Runs the expiry sweep nightly.
  *
- * <p>Disabled by default in tests via {@code pointscore.expiry-job.enabled},
- * so a scheduled sweep cannot fire in the middle of an unrelated test and
- * quietly change balances underneath it.
+ * <p>Off under the {@code test} profile via {@code pointscore.expiry-job.enabled}
+ * (see application-test.yml), so a scheduled sweep cannot fire in the middle
+ * of an unrelated test and quietly change balances underneath it.
  *
  * <p>A single-instance scheduler is a deliberate simplification. Running two
  * copies of this application would run the sweep twice; the second pass would

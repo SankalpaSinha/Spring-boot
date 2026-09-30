@@ -1,5 +1,7 @@
 # PointsCore
 
+[![CI](https://github.com/SankalpaSinha/Spring-boot/actions/workflows/ci.yml/badge.svg)](https://github.com/SankalpaSinha/Spring-boot/actions/workflows/ci.yml)
+
 A loyalty points and rewards engine. Members earn points on purchases according
 to rules held in the database, climb tiers, and redeem rewards. Points are held
 in dated lots and expire twelve months after they are earned.
@@ -43,7 +45,7 @@ anything beyond a laptop, or tokens stop working on every restart.
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 45 tests, against a real Postgres
+./mvnw test               # 49 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
@@ -114,6 +116,7 @@ curl -H "Authorization: Bearer $ASHA" localhost:8080/api/members/1/ledger
 | GET | `/api/members/{id}/transactions` | purchase history | self, admin |
 | GET | `/api/members/{id}/balance` | balance, expiring-soon, next expiry | self, admin |
 | GET | `/api/members/{id}/ledger` | paginated points history | self, admin |
+| GET | `/api/members/{id}/tier/history` | every tier movement and why | self, admin |
 | POST | `/api/members/{id}/redemptions` | redeem a reward | self, admin |
 | GET | `/api/members/{id}/redemptions` | redemption history | self, admin |
 | GET | `/api/rewards` | reward catalogue | anyone |
@@ -171,6 +174,25 @@ Retries are a separate problem with a separate fix: the caller sends an
 prevents a double spend. The pre-flight lookup is only a fast path, since two
 concurrent retries can both read "not seen".
 
+## Expiry and tiers
+
+Two nightly jobs, in the programme's timezone. Expiry runs at 02:00 and drains
+every lot past its date, writing a negative `EXPIRE` ledger row per lot in the
+same transaction so the ledger/lot invariant survives. Draining the lot is what
+makes a second run a no-op: the query only returns lots with points left.
+
+Tier review runs at 03:00. Status is judged on points **earned** in a rolling
+twelve months, never on balance, so redeeming a reward can never cost anyone
+their tier -- a programme that demoted members for spending would punish the
+exact behaviour it exists to encourage. A purchase recalculates the buyer's
+tier on the spot, so upgrades are immediate. The nightly review is what makes
+the window roll for members who stop buying. Every movement is recorded in
+`tier_changes` with the qualifying figure it was based on, because "why am I no
+longer Gold?" is not answerable from a single column.
+
+Both jobs are off under the `test` profile so they cannot fire mid-test; the
+services behind them are tested directly.
+
 ## Authentication
 
 Stateless bearer tokens: `POST /api/auth/login` returns an HS256-signed JWT
@@ -205,3 +227,4 @@ else, with codes `UNAUTHENTICATED` (401), `INVALID_CREDENTIALS` (401) and
 - [x] Redemption with row locking and idempotency keys
 - [x] Points expiry job and tier recalculation
 - [x] JWT authentication and the admin/member split
+- [x] Tier review job, tier history endpoint, CI

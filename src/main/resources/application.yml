@@ -63,6 +63,8 @@ pointscore:
   qualification-window-months: 12
   expiry-job:
     enabled: true
+  tier-review-job:
+    enabled: true
   security:
     # HS256 signing key, at least 32 bytes. Left blank, a random key is
     # generated at boot: fine for development and tests, wrong for anything

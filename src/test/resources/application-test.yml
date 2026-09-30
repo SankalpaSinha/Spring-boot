@@ -1,0 +1,10 @@
+# Active under the "test" profile only (see AbstractIntegrationTest).
+#
+# Scheduled jobs are off: a sweep firing at 02:00 in the middle of a test run
+# would change balances and tiers underneath whatever test was running. The
+# services behind them are still there for tests to call directly.
+pointscore:
+  expiry-job:
+    enabled: false
+  tier-review-job:
+    enabled: false

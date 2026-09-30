@@ -13,6 +13,7 @@ import io.pointscore.points.LedgerEntryRepository;
 import io.pointscore.points.LedgerEntryType;
 import io.pointscore.points.PointLot;
 import io.pointscore.points.PointLotRepository;
+import io.pointscore.tier.TierService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,6 +48,7 @@ public class TransactionService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final EarnRuleEngine earnRuleEngine;
     private final MemberService memberService;
+    private final TierService tierService;
     private final ProgrammeProperties programme;
 
     public TransactionService(TransactionRepository transactionRepository,
@@ -55,6 +57,7 @@ public class TransactionService {
                               LedgerEntryRepository ledgerEntryRepository,
                               EarnRuleEngine earnRuleEngine,
                               MemberService memberService,
+                              TierService tierService,
                               ProgrammeProperties programme) {
         this.transactionRepository = transactionRepository;
         this.earnRuleRepository = earnRuleRepository;
@@ -62,6 +65,7 @@ public class TransactionService {
         this.ledgerEntryRepository = ledgerEntryRepository;
         this.earnRuleEngine = earnRuleEngine;
         this.memberService = memberService;
+        this.tierService = tierService;
         this.programme = programme;
     }
 
@@ -120,6 +124,14 @@ public class TransactionService {
 
         if (result.points() > 0) {
             awardPoints(member, transaction, result, purchasedAt);
+            // Status follows earnings, so a purchase that crosses a threshold
+            // upgrades the member now rather than at tonight's review. The
+            // multiplier on THIS purchase used the tier they had when they
+            // paid: qualifying for Gold does not re-price the receipt that
+            // got them there. Same transaction, so a failed recalculation
+            // takes the purchase with it rather than leaving points awarded
+            // against a stale tier.
+            tierService.recalculate(memberId, Instant.now());
         }
 
         return new IngestOutcome(transaction, result, false);

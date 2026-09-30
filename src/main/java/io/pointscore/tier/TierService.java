@@ -63,7 +63,12 @@ public class TierService {
     @Transactional
     public TierAssessment recalculate(Long memberId, Instant asOf) {
         Member member = memberService.require(memberId);
-        Tier currentTier = member.getTier();
+        // Loaded for real rather than taken as the member's lazy proxy: the
+        // assessment outlives this transaction, and callers read sortOrder
+        // and name from it (the review job counts upgrades against downgrades).
+        Tier currentTier = tierRepository.findById(member.getTier().getId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "member " + memberId + " has tier_id " + member.getTier().getId() + " which does not exist"));
 
         Instant windowStart = programme.qualificationWindowStart(asOf);
         int qualifyingPoints = transactionRepository.sumPointsAwardedSince(memberId, windowStart);
