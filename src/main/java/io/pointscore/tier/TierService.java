@@ -62,48 +62,26 @@ public class TierService {
      */
     @Transactional
     public TierAssessment recalculate(Long memberId, Instant asOf) {
-        // ------------------------------------------------------------------
-        // YOUR TASK (milestone 4, part 2)
-        //
-        //   1. Member member = memberService.require(memberId);
-        //      Tier currentTier = member.getTier();
-        //
-        //   2. Work out the start of the rolling window:
-        //        Instant windowStart = programme.qualificationWindowStart(asOf);
-        //      (already written -- it steps back twelve months through the
-        //      programme's calendar, same reasoning as expiry dates)
-        //
-        //   3. int qualifyingPoints =
-        //        transactionRepository.sumPointsAwardedSince(memberId, windowStart);
-        //
-        //      Note this sums points AWARDED on purchases, not the member's
-        //      balance. Redeeming a reward must never cost someone their
-        //      status -- see the class javadoc.
-        //
-        //   4. Tier earnedTier = tierRepository.findHighestQualifying(qualifyingPoints)
-        //          .orElse(currentTier);
-        //      That query returns the best tier whose min_points_12m is at or
-        //      below the figure.
-        //
-        //   5. If earnedTier has the same id as currentTier, nothing changed:
-        //        return new TierAssessment(currentTier, currentTier,
-        //                                  qualifyingPoints, false);
-        //
-        //   6. Otherwise: set the member's tier, save the member, and record
-        //      the movement:
-        //        tierChangeRepository.save(
-        //            TierChange.of(member, currentTier, earnedTier, qualifyingPoints));
-        //      TierChange.of works out UPGRADE vs DOWNGRADE from sort_order,
-        //      so you do not need to.
-        //
-        //      Then return the assessment with changed = true.
-        //
-        // The test that matters most is the one proving a member who spends
-        // their entire balance keeps their tier. If that fails, step 3 is
-        // reading the balance instead of earnings.
-        // ------------------------------------------------------------------
-        throw new UnsupportedOperationException(
-                "milestone 4: implement TierService.recalculate");
+        Member member = memberService.require(memberId);
+        Tier currentTier = member.getTier();
+
+        Instant windowStart = programme.qualificationWindowStart(asOf);
+        int qualifyingPoints = transactionRepository.sumPointsAwardedSince(memberId, windowStart);
+
+        Tier earnedTier = tierRepository.findHighestQualifying(qualifyingPoints)
+                .orElse(currentTier);
+
+        if (earnedTier.getId().equals(currentTier.getId())) {
+            return new TierAssessment(currentTier, currentTier, qualifyingPoints, false);
+        }
+
+        member.setTier(earnedTier);
+        memberRepository.save(member);
+        tierChangeRepository.save(TierChange.of(member, currentTier, earnedTier, qualifyingPoints));
+
+        log.info("Member {} moved from {} to {} on {} qualifying points",
+                memberId, currentTier.getName(), earnedTier.getName(), qualifyingPoints);
+        return new TierAssessment(currentTier, earnedTier, qualifyingPoints, true);
     }
 
     public TierAssessment recalculateNow(Long memberId) {

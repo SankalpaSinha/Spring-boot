@@ -4,6 +4,7 @@ import io.pointscore.AbstractIntegrationTest;
 import io.pointscore.member.Member;
 import io.pointscore.member.MemberService;
 import io.pointscore.points.PointExpiryService.ExpiryOutcome;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,19 @@ class PointExpiryServiceTest extends AbstractIntegrationTest {
     @Autowired private LedgerEntryRepository ledgerEntryRepository;
     @Autowired private MemberService memberService;
     @Autowired private TransactionTemplate tx;
+
+    /**
+     * The sweep is global -- it is a nightly job, not a per-member call -- so
+     * its counts include every lot in the database. Other test classes leave
+     * lots behind, and the reused container keeps them between runs. Draining
+     * everything first, far in the future, means each test's outcome counts
+     * only the lots it seeded. Going through the service rather than TRUNCATE
+     * keeps the ledger/lot invariant intact for the members involved.
+     */
+    @BeforeEach
+    void clearTheBoard() {
+        pointExpiryService.expireLotsAsOf(Instant.now().plus(10_000, ChronoUnit.DAYS));
+    }
 
     @Test
     @DisplayName("expires a lot whose date has passed, and writes a negative ledger row")

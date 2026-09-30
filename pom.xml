@@ -131,6 +131,15 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<!-- Kilo creates git worktrees inside the source tree; keep them out of the build. -->
+					<excludes>
+						<exclude>**/.kilo/**</exclude>
+					</excludes>
+					<testExcludes>
+						<testExclude>**/.kilo/**</testExclude>
+					</testExcludes>
+				</configuration>
 				<executions>
 					<execution>
 						<id>default-compile</id>

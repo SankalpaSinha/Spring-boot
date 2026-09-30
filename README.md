@@ -39,7 +39,7 @@ docker compose up -d      # Postgres 17 on :5432
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 23 tests, against a real Postgres
+./mvnw test               # 36 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
@@ -159,5 +159,5 @@ concurrent retries can both read "not seen".
 - [x] Earn rule engine
 - [x] Purchase ingestion, balance, ledger, reward catalogue
 - [x] Redemption with row locking and idempotency keys
-- [ ] Points expiry job and tier recalculation
+- [x] Points expiry job and tier recalculation
 - [ ] JWT authentication and the admin/member split

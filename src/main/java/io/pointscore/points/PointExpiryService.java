@@ -47,40 +47,24 @@ public class PointExpiryService {
      */
     @Transactional
     public ExpiryOutcome expireLotsAsOf(Instant asOf) {
-        // ------------------------------------------------------------------
-        // YOUR TASK (milestone 4, part 1)
-        //
-        //   1. pointLotRepository.findExpiredLots(asOf)
-        //      Returns lots that still have points AND whose expires_at has
-        //      passed. Both conditions matter: a lot already drained to zero
-        //      by redemption must not produce a ledger row of -0, which the
-        //      database rejects anyway (points <> 0).
-        //
-        //   2. If the list is empty, return ExpiryOutcome.nothing().
-        //
-        //   3. For each lot:
-        //        - remember how many points are left  (getPointsRemaining())
-        //        - take them all: lot.draw(thatMany)
-        //        - write the ledger row:
-        //            LedgerEntry.of(lot.getMember(), LedgerEntryType.EXPIRE,
-        //                           -points, lot, "EXPIRY", null,
-        //                           "Points expired")
-        //          Negative again -- EXPIRE reduces the balance, and the CHECK
-        //          constraint enforces it.
-        //
-        //   4. Return the count of lots and the total points killed.
-        //
-        // Two things the tests check that are easy to miss:
-        //
-        //   - Running the job twice must not expire anything the second time.
-        //     Step 1 handles this for free IF you actually drain the lot;
-        //     a lot left with points still in it would be found again.
-        //
-        //   - A lot that was partly spent expires only what remains. Someone
-        //     who earned 100 and spent 60 loses 40, not 100.
-        // ------------------------------------------------------------------
-        throw new UnsupportedOperationException(
-                "milestone 4: implement PointExpiryService.expireLotsAsOf");
+        List<PointLot> expired = pointLotRepository.findExpiredLots(asOf);
+        if (expired.isEmpty()) {
+            return ExpiryOutcome.nothing();
+        }
+
+        int pointsExpired = 0;
+        for (PointLot lot : expired) {
+            int remaining = lot.getPointsRemaining();
+            lot.draw(remaining);
+            ledgerEntryRepository.save(LedgerEntry.of(
+                    lot.getMember(), LedgerEntryType.EXPIRE, -remaining,
+                    lot, "EXPIRY", null, "Points expired"));
+            pointsExpired += remaining;
+        }
+        pointLotRepository.saveAll(expired);
+
+        log.info("Expired {} points across {} lots as of {}", pointsExpired, expired.size(), asOf);
+        return new ExpiryOutcome(expired.size(), pointsExpired);
     }
 
     /** Convenience for the scheduled job. */
