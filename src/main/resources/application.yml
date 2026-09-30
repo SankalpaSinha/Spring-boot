@@ -59,3 +59,7 @@ pointscore:
   zone: Asia/Kolkata
   # Points survive twelve calendar months from the day they were earned.
   point-expiry-months: 12
+  # Tier status is judged on points earned in a rolling twelve months.
+  qualification-window-months: 12
+  expiry-job:
+    enabled: true

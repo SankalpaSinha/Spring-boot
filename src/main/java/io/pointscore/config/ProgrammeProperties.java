@@ -8,17 +8,28 @@ import java.time.ZoneId;
 /**
  * Policy that belongs to the brand running the programme, not to the code.
  *
- * @param zone              the brand's local timezone; decides what counts as a
- *                          weekend and when an expiry date falls
- * @param pointExpiryMonths how long earned points survive
+ * @param zone                      the brand's local timezone; decides what
+ *                                  counts as a weekend and when expiry dates
+ *                                  fall
+ * @param pointExpiryMonths         how long earned points survive
+ * @param qualificationWindowMonths how far back tier qualification looks
  */
 @ConfigurationProperties(prefix = "pointscore")
-public record ProgrammeProperties(ZoneId zone, int pointExpiryMonths) {
+public record ProgrammeProperties(
+        ZoneId zone,
+        int pointExpiryMonths,
+        int qualificationWindowMonths
+) {
 
     public ProgrammeProperties {
         if (pointExpiryMonths <= 0) {
             throw new IllegalArgumentException(
                     "pointscore.point-expiry-months must be positive, was " + pointExpiryMonths);
+        }
+        if (qualificationWindowMonths <= 0) {
+            throw new IllegalArgumentException(
+                    "pointscore.qualification-window-months must be positive, was "
+                            + qualificationWindowMonths);
         }
     }
 
@@ -35,5 +46,13 @@ public record ProgrammeProperties(ZoneId zone, int pointExpiryMonths) {
      */
     public Instant expiryFor(Instant earnedAt) {
         return earnedAt.atZone(zone).plusMonths(pointExpiryMonths).toInstant();
+    }
+
+    /**
+     * The start of the rolling window for tier qualification: purchases before
+     * this no longer count towards status. Same calendar reasoning as above.
+     */
+    public Instant qualificationWindowStart(Instant asOf) {
+        return asOf.atZone(zone).minusMonths(qualificationWindowMonths).toInstant();
     }
 }
