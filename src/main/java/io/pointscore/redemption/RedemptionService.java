@@ -11,6 +11,7 @@ import io.pointscore.points.LedgerEntryType;
 import io.pointscore.points.PointLot;
 import io.pointscore.points.PointLotRepository;
 import io.pointscore.reward.Reward;
+import org.hibernate.Hibernate;
 import io.pointscore.reward.RewardRepository;
 import io.pointscore.reward.RewardService;
 import org.slf4j.Logger;
@@ -158,7 +159,7 @@ public class RedemptionService {
         // // 1. Has this exact request already been done? A retry must not spend again.
         Optional<Redemption> alreadyDone = redemptionRepository.findByIdempotencyKey(idempotencyKey);
         if (alreadyDone.isPresent()) {
-            return new RedemptionOutcome(alreadyDone.get(), true);
+            return new RedemptionOutcome(replayable(alreadyDone.get()), true);
         }
 
         // 2. Load what we need.
@@ -199,7 +200,7 @@ public class RedemptionService {
             // A concurrent retry with the same key won. Return theirs.
             Redemption winner = redemptionRepository.findByIdempotencyKey(idempotencyKey)
                     .orElseThrow(() -> ex);
-            return new RedemptionOutcome(winner, true);
+            return new RedemptionOutcome(replayable(winner), true);
         }
 
         // 7. Draw the points, soonest-expiring lot first.
@@ -229,6 +230,17 @@ public class RedemptionService {
     public Page<Redemption> history(Long memberId, Pageable pageable) {
         memberService.require(memberId);
         return redemptionRepository.findByMemberIdOrderByCreatedAtDesc(memberId, pageable);
+    }
+
+    /**
+     * A redemption read back by key carries a lazy reward proxy, and the
+     * controller builds the response after this transaction has closed. The
+     * first-time path never hits this because the reward was loaded here.
+     * Initialising it now is what makes a replay answer 200 and not 500.
+     */
+    private static Redemption replayable(Redemption redemption) {
+        Hibernate.initialize(redemption.getReward());
+        return redemption;
     }
 
     @Transactional(readOnly = true)

@@ -45,7 +45,7 @@ anything beyond a laptop, or tokens stop working on every restart.
 Then open http://localhost:8080/swagger-ui.html.
 
 ```bash
-./mvnw test               # 52 tests, against a real Postgres
+./mvnw test               # 53 tests, against a real Postgres
 ```
 
 ### Docker on macOS with Colima
