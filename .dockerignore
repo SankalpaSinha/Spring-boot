@@ -1,0 +1,10 @@
+target
+.git
+.github
+.idea
+.vscode
+**/.kilo
+**/.github
+HELP.md
+README.md
+compose.yaml

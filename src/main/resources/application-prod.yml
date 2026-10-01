@@ -1,0 +1,8 @@
+# Production overrides. Activated with SPRING_PROFILES_ACTIVE=prod.
+logging:
+  level:
+    io.pointscore: INFO
+
+# Flyway migrations run at boot; the datasource comes from DB_URL / DB_USER /
+# DB_PASSWORD. Nothing else differs from the defaults on purpose: the same
+# configuration that passed the tests is what runs.

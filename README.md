@@ -72,6 +72,33 @@ Without it, tests fail with *Could not find a valid Docker environment*.
 Note that `reuse.enable` keeps the container between runs, so tests must not
 assume an empty database.
 
+## Deploying
+
+The app is a single container (see `Dockerfile`) that reads its database and
+secrets from the environment, so it runs anywhere that can run Docker and
+reach a Postgres. `render.yaml` is a Render blueprint for the free tier:
+
+1. Create a free Postgres on [Neon](https://neon.tech) and copy the host,
+   database, user and password.
+2. On [Render](https://render.com), choose **New > Blueprint**, pick this repo,
+   and fill in the prompted values: `DB_URL` as
+   `jdbc:postgresql://HOST/DBNAME?sslmode=require`, `DB_USER`, `DB_PASSWORD`,
+   `ADMIN_EMAIL` and `ADMIN_PASSWORD`. `JWT_SECRET` is generated for you.
+3. Deploy. Flyway creates the schema on first boot and the admin account is
+   created from the two variables. Swagger is at `/swagger-ui.html`.
+
+The free instance sleeps after fifteen idle minutes and takes about a minute
+to wake, which is fine for a demo and wrong for a till.
+
+To run the container locally against the compose database:
+
+```bash
+docker build -t pointscore .
+docker run -p 8080:8080 -e DB_URL=jdbc:postgresql://host.docker.internal:5432/pointscore \
+  -e DB_USER=pointscore -e DB_PASSWORD=pointscore \
+  -e ADMIN_EMAIL=admin@example.com -e ADMIN_PASSWORD=change-me-please pointscore
+```
+
 ## Trying it out
 
 ```bash

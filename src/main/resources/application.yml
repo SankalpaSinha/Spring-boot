@@ -28,7 +28,8 @@ spring:
     default-property-inclusion: non_null
 
 server:
-  port: 8080
+  # Hosts such as Render inject PORT; locally it stays 8080.
+  port: ${PORT:8080}
   error:
     include-message: always
 

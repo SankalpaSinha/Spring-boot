@@ -1,0 +1,27 @@
+# Render blueprint: "New +" -> "Blueprint" -> pick this repo. Creates the web
+# service and asks for the values marked sync: false.
+services:
+  - type: web
+    name: pointscore
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    envVars:
+      # A Neon (or any Postgres) connection, e.g.
+      # jdbc:postgresql://HOST/pointscore?sslmode=require
+      - key: DB_URL
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # 32+ bytes. Generated once by Render so tokens survive restarts.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
